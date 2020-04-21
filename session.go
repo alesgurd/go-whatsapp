@@ -109,7 +109,7 @@ func CheckCurrentServerVersion() ([]int, error) {
 	}
 
 	b64ClientId := base64.StdEncoding.EncodeToString(clientId)
-	login := []interface{}{"admin", "init", waVersion, []string{wac.longClientName, wac.shortClientName}, b64ClientId, true}
+	login := []interface{}{"admin", "init", waVersion, []string{wac.longClientName, wac.shortClientName, wac.clientVersion}, b64ClientId, true}
 	loginChan, err := wac.writeJson(login)
 	if err != nil {
 		return nil, fmt.Errorf("error writing login: %s", err.Error())
@@ -242,6 +242,25 @@ func (wac *Conn) LoginWithRetry(qrChan chan<- string, maxRetries int) (Session, 
 	}
 
 	session.ClientId = base64.StdEncoding.EncodeToString(clientId)
+	login := []interface{}{"admin", "init", waVersion, []string{wac.longClientName, wac.shortClientName, wac.clientVersion}, session.ClientId, true}
+	loginChan, err := wac.writeJson(login)
+	if err != nil {
+		return session, fmt.Errorf("error writing login: %v\n", err)
+	}
+
+	var r string
+	select {
+	case r = <-loginChan:
+	case <-time.After(wac.msgTimeout):
+		return session, fmt.Errorf("login connection timed out")
+	}
+
+	var resp map[string]interface{}
+	if err = json.Unmarshal([]byte(r), &resp); err != nil {
+		return session, fmt.Errorf("error decoding login resp: %v\n", err)
+	}
+
+	ref := resp["ref"].(string)
 
 	priv, pub, err := curve25519.GenerateKey()
 	if err != nil {
@@ -263,7 +282,8 @@ func (wac *Conn) LoginWithRetry(qrChan chan<- string, maxRetries int) (Session, 
 	wac.loginSessionLock.Lock()
 	defer wac.loginSessionLock.Unlock()
 	var resp2 []interface{}
-	For: for {
+For:
+	for {
 		select {
 		case r1 := <-s1:
 			if err := json.Unmarshal([]byte(r1), &resp2); err != nil {
@@ -395,7 +415,7 @@ func (wac *Conn) Restore() error {
 	wac.listener.Unlock()
 
 	//admin init
-	init := []interface{}{"admin", "init", waVersion, []string{wac.longClientName, wac.shortClientName}, wac.session.ClientId, true}
+	init := []interface{}{"admin", "init", waVersion, []string{wac.longClientName, wac.shortClientName, wac.clientVersion}, wac.session.ClientId, true}
 	initChan, err := wac.writeJson(init)
 	if err != nil {
 		return fmt.Errorf("error writing admin init: %v\n", err)
