@@ -143,11 +143,11 @@ func CheckCurrentServerVersion() ([]int, error) {
 SetClientName sets the long and short client names that are sent to WhatsApp when logging in and displayed in the
 WhatsApp Web device list. As the values are only sent when logging in, changing them after logging in is not possible.
 */
-func (wac *Conn) SetClientName(long, short string) error {
+func (wac *Conn) SetClientName(long, short, version string) error {
 	if wac.session != nil && (wac.session.EncKey != nil || wac.session.MacKey != nil) {
 		return fmt.Errorf("cannot change client name after logging in")
 	}
-	wac.longClientName, wac.shortClientName = long, short
+	wac.longClientName, wac.shortClientName, wac.clientVersion = long, short, version
 	return nil
 }
 
